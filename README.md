@@ -35,7 +35,7 @@ videos in the browser, and share a file with a link like it's Google Drive.
 ## 🚀 Quick start
 
 ```sh
-git clone https://github.com/<you>/shinodrive.git
+git clone https://github.com/sonyasleeper09-gif/shinodrive.git
 cd shinodrive
 ./install.sh
 ```
