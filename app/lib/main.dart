@@ -30,11 +30,15 @@ class Api {
   final Dio dio = Dio();
   String base = '';
   String token = '';
+  String user = '';
+  String role = '';
+  bool canWrite = true;
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
     base = p.getString('base') ?? 'http://192.168.45.205:8090';
     token = p.getString('token') ?? '';
+    user = p.getString('user') ?? '';
     _apply();
   }
 
@@ -48,26 +52,36 @@ class Api {
     final p = await SharedPreferences.getInstance();
     await p.setString('base', base);
     await p.setString('token', token);
+    await p.setString('user', user);
   }
 
   Future<bool> ok() async {
     if (token.isEmpty) return false;
     try {
       final r = await dio.get('/api/me');
-      return r.statusCode == 200;
+      if (r.statusCode == 200) {
+        user = (r.data['user'] ?? user).toString();
+        role = (r.data['role'] ?? '').toString();
+        canWrite = r.data['canWrite'] ?? (role != 'reader');
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
   }
 
-  Future<bool> login(String server, String pw) async {
+  Future<bool> login(String server, String username, String pw) async {
     base = server.trim();
     if (!base.startsWith('http')) base = 'http://$base';
     _apply();
     try {
-      final r = await dio.post('/api/login', data: {'password': pw});
+      final r = await dio.post('/api/login', data: {'username': username, 'password': pw});
       if (r.statusCode == 200 && r.data['token'] != null) {
         token = r.data['token'];
+        user = (r.data['user'] ?? username).toString();
+        role = (r.data['role'] ?? '').toString();
+        canWrite = role == 'admin' || role == 'editor';
         _apply();
         await save();
         return true;
@@ -245,6 +259,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final server = TextEditingController(text: Api.I.base);
+  final usr = TextEditingController(text: Api.I.user);
   final pw = TextEditingController();
   String err = '';
   bool busy = false;
@@ -254,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
       busy = true;
       err = '';
     });
-    final ok = await Api.I.login(server.text, pw.text);
+    final ok = await Api.I.login(server.text, usr.text.trim(), pw.text);
     if (ok) {
       widget.onDone();
     } else {
@@ -280,6 +295,8 @@ class _LoginScreenState extends State<LoginScreen> {
             const Text('病みかわ NAS ・ ぱすわーど いれて ♡', style: TextStyle(color: cDim, fontSize: 13)),
             const SizedBox(height: 28),
             _field(server, '서버 주소 (예: 192.168.45.205:8090)', false),
+            const SizedBox(height: 12),
+            _field(usr, '아이디', false),
             const SizedBox(height: 12),
             _field(pw, 'password…', true, onSubmit: _go),
             const SizedBox(height: 18),
@@ -518,14 +535,16 @@ class _BrowserState extends State<Browser> {
             Navigator.pop(context);
             _share(e);
           }),
-          _mrow(Icons.edit_rounded, '이름 바꾸기', () {
-            Navigator.pop(context);
-            _rename(e);
-          }),
-          _mrow(Icons.delete_rounded, '삭제', () {
-            Navigator.pop(context);
-            _del(e);
-          }, danger: true),
+          if (Api.I.canWrite) ...[
+            _mrow(Icons.edit_rounded, '이름 바꾸기', () {
+              Navigator.pop(context);
+              _rename(e);
+            }),
+            _mrow(Icons.delete_rounded, '삭제', () {
+              Navigator.pop(context);
+              _del(e);
+            }, danger: true),
+          ],
           const SizedBox(height: 10),
         ]),
       ),
@@ -656,17 +675,19 @@ class _BrowserState extends State<Browser> {
                 ),
         ),
       ]),
-      floatingActionButton: SizedBox(
-        width: 66,
-        height: 66,
-        child: FloatingActionButton(
-          backgroundColor: cPink,
-          elevation: 8,
-          shape: const CircleBorder(),
-          onPressed: _addSheet,
-          child: const Icon(Icons.add, color: Colors.white, size: 34),
-        ),
-      ),
+      floatingActionButton: Api.I.canWrite
+          ? SizedBox(
+              width: 66,
+              height: 66,
+              child: FloatingActionButton(
+                backgroundColor: cPink,
+                elevation: 8,
+                shape: const CircleBorder(),
+                onPressed: _addSheet,
+                child: const Icon(Icons.add, color: Colors.white, size: 34),
+              ),
+            )
+          : null,
     );
   }
 

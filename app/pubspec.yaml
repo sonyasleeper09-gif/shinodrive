@@ -1,7 +1,7 @@
 name: shinodrive
 description: "SHINODRIVE — 병みかわ NAS 클라이언트"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.12.2
