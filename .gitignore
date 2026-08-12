@@ -1,0 +1,11 @@
+# build output
+/shinodrive
+*.exe
+
+# local config / secrets
+password.txt
+secret
+shares.json
+
+# os
+.DS_Store

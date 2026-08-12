@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0710">
+<title>SHINODRIVE ♥ 공유</title>
+<style>
+@font-face{font-family:"PX";src:url(/static/PressStart2P.ttf) format("truetype");font-display:swap}
+:root{--bg:#0b0710;--bg2:#100a1a;--card:#181022;--card2:#20152f;--pink:#ff6fb5;--hot:#ff2d8e;--purple:#b79cff;--cyan:#7ce7ff;--text:#f4ecff;--dim:#9a90bf;--line:rgba(255,111,181,.24)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(1000px 600px at 80% -10%,rgba(255,45,142,.14),transparent 60%),linear-gradient(160deg,var(--bg),var(--bg2));color:var(--text);font-family:"JetBrains Mono",ui-monospace,monospace}
+.px{font-family:"PX",monospace}
+a{color:inherit;text-decoration:none}
+header{position:sticky;top:0;padding:12px 14px;background:linear-gradient(180deg,rgba(11,7,16,.96),rgba(11,7,16,.82));border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.brand{font-family:"PX";font-size:13px;color:var(--pink)} .brand .h{color:var(--hot)}
+.sh{margin-left:auto;font-size:11px;color:var(--dim)}
+.crumbs{padding:10px 14px;font-size:13px;color:var(--dim);display:flex;flex-wrap:wrap;gap:2px}
+.crumbs b{color:var(--pink)} .crumbs span{padding:3px 7px;border-radius:8px}
+#list{padding:2px 10px 40px;max-width:900px;margin:0 auto}
+.item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;margin-bottom:7px;background:var(--card);min-height:56px}
+.item:active{background:var(--card2)}
+.ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:19px;background:rgba(255,111,181,.10);flex:none}
+.nm{flex:1;min-width:0}.nm .t{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nm .m{font-size:11px;color:var(--dim);margin-top:2px}
+.dl{font-size:18px;color:var(--pink);padding:6px}
+.filecard{max-width:520px;margin:40px auto;padding:26px;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:20px}
+.filecard .big{font-size:56px;margin-bottom:14px}
+.filecard .fn{font-size:16px;word-break:break-all;margin-bottom:6px}
+.filecard .meta{font-size:12px;color:var(--dim);margin-bottom:20px}
+.filecard .btn{display:inline-block;padding:14px 26px;border-radius:14px;background:linear-gradient(90deg,var(--purple),var(--pink),var(--hot));color:#fff;font-family:"PX";font-size:12px;box-shadow:0 6px 20px rgba(255,45,142,.35)}
+.pv{margin:16px auto 0;max-width:900px}.pv img,.pv video,.pv audio{max-width:100%;max-height:70vh;border-radius:12px}
+footer{text-align:center;font-family:"PX";font-size:8px;color:rgba(154,144,191,.6);padding:24px}
+.err{text-align:center;color:var(--pink);font-family:"PX";font-size:11px;padding:80px 20px}
+</style>
+</head>
+<body>
+<header><span class="brand"><span class="h">♥</span> SHINODRIVE</span><span class="sh" id="sh">공유됨</span></header>
+<div class="crumbs" id="crumbs"></div>
+<div id="main"></div>
+<footer>ﾟ･｡ ♥ 病みかわ NAS ♥ ｡･ﾟ</footer>
+<script>
+const tok=location.pathname.split("/").filter(Boolean)[1]||location.pathname.split("/").pop();
+const $=s=>document.querySelector(s);
+let isDir=false, name="";
+function fb(b){const u=["B","KB","MB","GB","TB"];let i=0,n=b||0;while(n>=1024&&i<4){n/=1024;i++}return (n>=100?Math.round(n):n.toFixed(1))+" "+u[i]}
+function ext(n){const i=n.lastIndexOf(".");return i<0?"":n.slice(i+1).toLowerCase()}
+const IMG=["jpg","jpeg","png","gif","webp","bmp","svg","avif"],VID=["mp4","webm","mkv","mov","avi","m4v","ts","flv"],AUD=["mp3","flac","wav","ogg","m4a","opus"];
+function icon(e){if(e.isDir)return"📁";const x=ext(e.name);if(IMG.includes(x))return"🖼";if(VID.includes(x))return"🎬";if(AUD.includes(x))return"🎵";if(["zip","tar","gz","xz","7z","rar"].includes(x))return"📦";return"📄"}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+const U=a=>`/sd/${tok}/${a}`;
+async function boot(){
+  const r=await fetch(U("info"));
+  if(!r.ok){$("#main").innerHTML=`<div class="err">💔 공유가 없거나 만료됐어…</div>`;return}
+  const d=await r.json();isDir=d.isDir;name=d.name;$("#sh").textContent=isDir?"📁 폴더 공유":"📄 파일 공유";
+  if(isDir)nav("/");else fileView();
+}
+async function nav(p){
+  const r=await fetch(U("list")+"?p="+encodeURIComponent(p));const d=await r.json();
+  const parts=p.split("/").filter(Boolean);let acc="";let cr=`<span onclick="nav('/')"><b>♥ ${esc(name)}</b></span>`;
+  parts.forEach(x=>{acc+="/"+x;const a=acc;cr+=`<span style="opacity:.5">/</span><span onclick="nav('${a.replace(/'/g,"\\'")}')">${esc(x)}</span>`});
+  $("#crumbs").innerHTML=cr;
+  $("#main").innerHTML=`<div id="list">`+(d.entries.length?d.entries.map((e,i)=>{
+    const cp=(p==="/"?"":p)+"/"+e.name;
+    return `<div class="item" onclick="tap(${i})"><div class="ic">${icon(e)}</div>
+      <div class="nm"><div class="t">${esc(e.name)}</div><div class="m">${e.isDir?"폴더":fb(e.size)}</div></div>
+      ${e.isDir?"":`<a class="dl" href="${U('dl')}?p=${encodeURIComponent(cp)}" onclick="event.stopPropagation()">⬇️</a>`}</div>`;
+  }).join(""):`<div class="err">🫧 비어있어</div>`)+`</div>`;
+  window._e=d.entries;window._p=p;
+}
+function tap(i){const e=window._e[i];const cp=(window._p==="/"?"":window._p)+"/"+e.name;if(e.isDir)nav(cp);else preview(e.name,cp)}
+function fileView(){preview(name,"",true)}
+function preview(fn,cp,isFileShare){
+  const x=ext(fn);const q=isFileShare?"":"?p="+encodeURIComponent(cp);
+  const raw=U("raw")+q,dl=U("dl")+q,stream=U("stream")+q;
+  const NATIVE=["mp4","webm","m4v","mov"];let pv="";
+  if(IMG.includes(x))pv=`<div class="pv"><img src="${raw}"></div>`;
+  else if(VID.includes(x)){const src=NATIVE.includes(x)?raw:stream;pv=`<div class="pv"><video src="${src}" data-fb="${stream}" controls autoplay playsinline onerror="if(this.src.indexOf('/stream')<0)this.src=this.dataset.fb"></video></div>`}
+  else if(AUD.includes(x))pv=`<div class="pv"><audio src="${raw}" controls autoplay style="width:90%"></audio></div>`;
+  $("#main").innerHTML=`<div class="filecard"><div class="big">${icon({name:fn})}</div>
+    <div class="fn">${esc(fn)}</div><div class="meta">병みかわ NAS ・ 공유 파일 ♡</div>
+    <a class="btn" href="${dl}">⬇ 다운로드</a></div>`+pv;
+}
+boot();
+</script>
+</body>
+</html>

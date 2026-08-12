@@ -1,0 +1,20 @@
+# SHINODRIVE systemd service (template — install.sh writes the real one)
+# Manual install:
+#   sudo cp shinodrive /usr/local/bin/
+#   edit the paths below, then:
+#   sudo cp shinodrive.service /etc/systemd/system/
+#   sudo systemctl enable --now shinodrive
+[Unit]
+Description=SHINODRIVE menhera file manager
+After=network.target
+
+[Service]
+User=CHANGE_ME
+Environment=SHINODRIVE_ROOT=/srv/shinodrive
+Environment=SHINODRIVE_ADDR=:8090
+Environment=SHINODRIVE_CFG=/home/CHANGE_ME/.config/shinodrive
+ExecStart=/usr/local/bin/shinodrive
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

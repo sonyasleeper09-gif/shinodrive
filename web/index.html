@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0710">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SHINODRIVE">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<link rel="icon" href="/static/icon-192.png">
+<title>SHINODRIVE ♥</title>
+<style>
+@font-face{font-family:"PX";src:url(/static/PressStart2P.ttf) format("truetype");font-display:swap}
+:root{--bg:#0b0710;--bg2:#100a1a;--card:#181022;--card2:#20152f;--pink:#ff6fb5;--hot:#ff2d8e;--purple:#b79cff;--cyan:#7ce7ff;--text:#f4ecff;--dim:#9a90bf;--good:#86ffb8;--bad:#ff6f8e;--line:rgba(255,111,181,.24)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(1000px 600px at 80% -10%,rgba(255,45,142,.14),transparent 60%),linear-gradient(160deg,var(--bg),var(--bg2));
+  color:var(--text);font-family:"JetBrains Mono",ui-monospace,monospace;overscroll-behavior:none;
+  padding-top:env(safe-area-inset-top)}
+.px{font-family:"PX",monospace}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+a{color:inherit;text-decoration:none}
+.hidden{display:none!important}
+svg{display:block}
+
+#login{position:fixed;inset:0;display:grid;place-items:center;padding:24px;z-index:50;background:radial-gradient(800px 500px at 50% 0,rgba(255,45,142,.14),transparent),var(--bg)}
+.loginbox{width:100%;max-width:360px;text-align:center}
+.loginbox .logo{font-family:"PX";font-size:19px;color:var(--pink);text-shadow:0 0 14px rgba(255,45,142,.6);margin-bottom:6px}
+.loginbox .sub{color:var(--dim);font-size:12px;margin-bottom:26px}
+.loginbox input{width:100%;padding:15px 16px;border-radius:14px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:16px;outline:none;margin-bottom:14px}
+.loginbox input:focus{border-color:var(--pink)}
+.loginbox .go{width:100%;padding:15px;border-radius:14px;background:linear-gradient(90deg,var(--purple),var(--pink),var(--hot));color:#fff;font-family:"PX";font-size:12px;box-shadow:0 6px 20px rgba(255,45,142,.35)}
+.loginbox .err{color:var(--bad);font-size:12px;height:16px;margin-top:10px}
+
+header{position:sticky;top:0;z-index:20;padding:12px 14px 10px;background:linear-gradient(180deg,rgba(11,7,16,.97),rgba(11,7,16,.85));backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.hrow{display:flex;align-items:center;gap:8px}
+.brand{font-family:"PX";font-size:14px;color:var(--pink);display:flex;align-items:center;gap:7px}
+.brand .hb{color:var(--hot);animation:beat 1.2s infinite;display:inline-flex}
+.hrow .sp{flex:1}
+.iconbtn{width:38px;height:38px;border-radius:11px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;color:var(--pink)}
+.iconbtn:active{background:var(--card2)}
+.usage{margin-top:9px;display:flex;align-items:center;gap:9px;font-size:11px;color:var(--dim)}
+.usage .ic{color:var(--purple);display:flex}
+.usage .bar{flex:1;height:8px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--line)}
+.usage .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--purple),var(--pink));width:0;transition:width .6s}
+.sys{display:flex;gap:7px;margin-top:8px}
+.sys .chip{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--dim);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 4px}
+.sys .chip b{color:var(--pink)}.sys .chip .ic{color:var(--purple);display:flex}
+#searchbar{margin-top:9px;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+#searchbar input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:15px}
+#searchbar .ic{color:var(--pink);display:flex}
+
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:10px 14px;font-size:13px;color:var(--dim)}
+.crumbs b{color:var(--pink)}.crumbs span{padding:3px 7px;border-radius:8px}.crumbs span:active{background:var(--card)}.crumbs .s{opacity:.5}
+
+#list{padding:2px 10px 120px}
+.item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:14px;margin-bottom:7px;background:var(--card);border:1px solid transparent;min-height:56px}
+.item:active{background:var(--card2)}
+.item.dir{border-color:rgba(255,111,181,.16)}
+.item .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none;background:rgba(255,111,181,.10);color:var(--pink);overflow:hidden}
+.item .ic.f{background:rgba(183,156,255,.10);color:var(--purple)}
+.item .ic img{width:100%;height:100%;object-fit:cover}
+.item .nm{flex:1;min-width:0}.item .nm .t{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .nm .m{font-size:11px;color:var(--dim);margin-top:2px}
+.item .menu{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--dim);flex:none}
+.item .menu:active{background:rgba(255,255,255,.06);color:var(--pink)}
+/* grid */
+#list.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px;padding:8px 12px 120px}
+#list.grid .item{flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden;min-height:0}
+#list.grid .item .ic{width:100%;height:100px;border-radius:0;background:var(--card2)}
+#list.grid .item .ic svg{width:34px;height:34px}
+#list.grid .item .nm{padding:8px 9px}
+#list.grid .item .nm .t{font-size:12px;white-space:normal;word-break:break-all;max-height:2.6em;overflow:hidden}
+#list.grid .item .menu{position:absolute;top:4px;right:4px;width:28px;height:28px;background:rgba(0,0,0,.4);border-radius:8px;color:#fff}
+#list.grid .item{position:relative}
+.empty{text-align:center;color:var(--dim);padding:60px 20px;grid-column:1/-1}
+.empty .e{display:flex;justify-content:center;margin-bottom:12px;color:var(--pink)}
+.empty .p{font-family:"PX";font-size:10px;color:var(--pink)}
+
+.fab{position:fixed;right:18px;bottom:calc(22px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;z-index:25;background:linear-gradient(135deg,var(--pink),var(--hot));color:#fff;display:grid;place-items:center;box-shadow:0 8px 24px rgba(255,45,142,.45)}
+.fab:active{transform:scale(.94)}
+.fab svg{width:28px;height:28px}
+
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;display:flex;align-items:flex-end}
+.scrim.center{align-items:center;justify-content:center;padding:22px}
+.sheet{width:100%;background:var(--bg2);border-top-left-radius:22px;border-top-right-radius:22px;border-top:1px solid var(--line);padding:10px 14px calc(20px + env(safe-area-inset-bottom))}
+.sheet .grab{width:42px;height:4px;border-radius:3px;background:#3a2f4d;margin:8px auto 14px}
+.sheet .row{display:flex;align-items:center;gap:14px;padding:15px 8px;border-radius:12px;font-size:16px}
+.sheet .row:active{background:var(--card)}
+.sheet .row .i{display:flex;width:24px;justify-content:center;color:var(--pink)}
+.sheet .row.danger,.sheet .row.danger .i{color:var(--bad)}
+.dialog{width:100%;max-width:380px;background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:20px}
+.dialog h3{font-family:"PX";font-size:12px;color:var(--pink);margin:0 0 16px;display:flex;align-items:center;gap:8px}
+.dialog input{width:100%;padding:13px 14px;border-radius:12px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:16px;outline:none;margin-bottom:16px}
+.dialog input:focus{border-color:var(--pink)}
+.dialog .btns{display:flex;gap:10px}
+.dialog .btns button{flex:1;padding:12px;border-radius:12px;font-size:14px}
+.dialog .cancel{background:var(--card);color:var(--dim)}
+.dialog .ok{background:linear-gradient(90deg,var(--pink),var(--hot));color:#fff}
+.shlist{max-height:50vh;overflow:auto;margin-bottom:8px}
+.shrow{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--card);margin-bottom:6px;font-size:13px}
+.shrow .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shrow .cp{color:var(--cyan);padding:6px}.shrow .rm{color:var(--bad);padding:6px}
+
+.pv{position:fixed;inset:0;z-index:45;background:rgba(5,3,9,.95);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.pv .top{display:flex;align-items:center;gap:10px;padding:12px 14px}
+.pv .top .t{flex:1;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pv .body{flex:1;display:grid;place-items:center;padding:10px;overflow:auto}
+.pv img,.pv video{max-width:100%;max-height:100%;border-radius:10px}
+.pv .dl{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:11px;background:linear-gradient(90deg,var(--pink),var(--hot));color:#fff;font-size:13px;font-family:"PX"}
+
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:60;background:var(--card2);border:1px solid var(--line);color:var(--text);padding:11px 18px;border-radius:12px;font-size:13px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
+#up{position:fixed;left:14px;right:14px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:30;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+#up .t{font-size:12px;color:var(--pink);font-family:"PX";margin-bottom:8px}
+#up .bar{height:8px;border-radius:5px;background:rgba(255,255,255,.06);overflow:hidden}
+#up .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pink),var(--hot));transition:width .2s}
+@keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.3)}}
+@media(min-width:720px){#list{max-width:1000px;margin:0 auto}header .hrow,.crumbs,.usage,.sys,#searchbar{max-width:1000px;margin-left:auto;margin-right:auto}}
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="loginbox">
+    <div class="logo">♥ SHINODRIVE ♥</div>
+    <div class="sub">病みかわ NAS ・ ぱすわーど いれて ♡</div>
+    <input id="pw" type="password" placeholder="password…" autocomplete="current-password">
+    <button class="go" onclick="doLogin()">ログイン ♥</button>
+    <div class="err" id="lerr"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <div class="hrow">
+      <div class="brand"><span class="hb"></span> SHINODRIVE</div>
+      <div class="sp"></div>
+      <button class="iconbtn" id="btnSearch" onclick="toggleSearch()"></button>
+      <button class="iconbtn" id="btnView" onclick="toggleView()"></button>
+      <button class="iconbtn" onclick="refresh()" id="btnRefresh"></button>
+      <button class="iconbtn" onclick="logout()" id="btnPower"></button>
+    </div>
+    <div class="usage">
+      <span class="ic" id="uic"></span>
+      <div class="bar"><i id="ubar"></i></div>
+      <span id="utext">— / —</span>
+    </div>
+    <div class="sys">
+      <span class="chip"><span class="ic" id="cic"></span><b id="scpu">–</b></span>
+      <span class="chip"><span class="ic" id="mic"></span><b id="smem">–</b></span>
+      <span class="chip"><span class="ic" id="tic"></span><b id="stemp">–</b></span>
+    </div>
+    <div id="searchbar" class="hidden">
+      <span class="ic" id="sic"></span>
+      <input id="searchin" placeholder="なにさがす？ ♡" oninput="onSearch()">
+    </div>
+  </header>
+  <div class="crumbs" id="crumbs"></div>
+  <div id="list"></div>
+  <button class="fab" onclick="openAdd()" id="fab"></button>
+</div>
+
+<div id="toast"></div>
+<input id="fileinput" type="file" multiple class="hidden">
+
+<script>
+const $=s=>document.querySelector(s);
+// ── SVG 아이콘 (Feather 스타일 라인) ──
+const ICONS={
+ folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+ image:'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+ video:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/>',
+ audio:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+ archive:'<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+ doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+ file:'<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>',
+ refresh:'<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+ power:'<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
+ upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+ download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+ share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>',
+ edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+ trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+ plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+ folderplus:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
+ search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+ grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+ list:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+ zip:'<path d="M21 8v13H3V8"/><rect x="1" y="3" width="22" height="5"/><line x1="12" y1="3" x2="12" y2="21"/><path d="M10 12h4M10 15h4M10 18h4"/>',
+ cpu:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+ ram:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>',
+ temp:'<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
+ hdd:'<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
+ x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+ menu:'<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
+ copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+ heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
+};
+function ic(name,o={}){const s=o.size||22;const f=o.fill?"currentColor":"none";
+ return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${o.sw||2}" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.file}</svg>`}
+
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900)}
+function api(u,o={}){o.headers=Object.assign({"Content-Type":"application/json"},o.headers||{});return fetch(u,o)}
+function fb(b){const u=["B","KB","MB","GB","TB"];let i=0,n=b||0;while(n>=1024&&i<4){n/=1024;i++}return (n>=100?Math.round(n):n.toFixed(1))+" "+u[i]}
+function fdate(s){const d=new Date(s*1000);return d.toLocaleDateString("ko-KR",{month:"2-digit",day:"2-digit"})+" "+d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}
+function ext(n){const i=n.lastIndexOf(".");return i<0?"":n.slice(i+1).toLowerCase()}
+const IMG=["jpg","jpeg","png","gif","webp","bmp","svg","avif","heic"],VID=["mp4","webm","mkv","mov","avi","m4v","ts","flv"],AUD=["mp3","flac","wav","ogg","m4a","opus"];
+function ftype(e){if(e.isDir)return"folder";const x=ext(e.name);if(IMG.includes(x))return"image";if(VID.includes(x))return"video";if(AUD.includes(x))return"audio";if(["zip","tar","gz","xz","7z","rar"].includes(x))return"archive";if(["txt","md","log","json","conf","sh","go","js","py","pdf"].includes(x))return"doc";return"file"}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+let cur="/",view="list",searchOn=false,searchT=null;
+
+function boot(){$("#btnSearch").innerHTML=ic("search");$("#btnRefresh").innerHTML=ic("refresh");$("#btnPower").innerHTML=ic("power");$("#fab").innerHTML=ic("plus");
+ $("#uic").innerHTML=ic("hdd",{size:16});$("#cic").innerHTML=ic("cpu",{size:15});$("#mic").innerHTML=ic("ram",{size:15});$("#tic").innerHTML=ic("temp",{size:15});$("#sic").innerHTML=ic("search",{size:16});
+ $(".brand .hb").innerHTML=ic("heart",{size:15,fill:true});updateViewBtn();
+ api("/api/me").then(r=>{if(r.ok)showApp();else $("#login").classList.remove("hidden")})}
+async function doLogin(){const pw=$("#pw").value;$("#lerr").textContent="";
+ const r=await api("/api/login",{method:"POST",body:JSON.stringify({password:pw})});
+ if(r.ok)showApp();else{$("#lerr").textContent="비밀번호가 틀렸어… 다시 해봐 ♡";$("#pw").value=""}}
+function showApp(){$("#login").classList.add("hidden");$("#app").classList.remove("hidden");loadUsage();updateSys();setInterval(updateSys,3000);nav("/")}
+async function logout(){await api("/api/logout",{method:"POST"});location.reload()}
+async function loadUsage(){const r=await api("/api/usage");if(!r.ok)return;const u=await r.json();$("#ubar").style.width=(u.total?100*u.used/u.total:0)+"%";$("#utext").textContent=fb(u.used)+" / "+fb(u.total)}
+async function updateSys(){const r=await api("/api/sys");if(!r.ok)return;const s=await r.json();$("#scpu").textContent=Math.round(s.cpu)+"%";$("#smem").textContent=Math.round(s.mem.pct)+"%";$("#stemp").textContent=Math.round(s.temp)+"°"}
+
+function updateViewBtn(){$("#btnView").innerHTML=ic(view==="list"?"grid":"list")}
+function toggleView(){view=view==="list"?"grid":"list";updateViewBtn();render()}
+function toggleSearch(){searchOn=!searchOn;$("#searchbar").classList.toggle("hidden",!searchOn);if(searchOn){$("#searchin").focus()}else{$("#searchin").value="";nav(cur)}}
+function onSearch(){clearTimeout(searchT);searchT=setTimeout(doSearch,300)}
+async function doSearch(){const q=$("#searchin").value.trim();if(!q){nav(cur);return}
+ const r=await api("/api/search?path="+encodeURIComponent(cur)+"&q="+encodeURIComponent(q));const d=await r.json();
+ window._data={entries:d.entries,search:true};render()}
+
+function crumbs(){const box=$("#crumbs");const parts=cur.split("/").filter(Boolean);
+ let html=`<span onclick="nav('/')"><b>♥ home</b></span>`;let acc="";
+ parts.forEach(p=>{acc+="/"+p;const a=acc;html+=`<span class="s">/</span><span onclick="nav('${a.replace(/'/g,"\\'")}')">${esc(p)}</span>`});box.innerHTML=html}
+async function nav(p){cur=p||"/";if(searchOn){searchOn=false;$("#searchbar").classList.add("hidden");$("#searchin").value=""}
+ crumbs();const r=await api("/api/list?path="+encodeURIComponent(cur));
+ if(r.status===401)return location.reload();
+ if(!r.ok){$("#list").innerHTML=`<div class="empty"><div class="e">${ic("x",{size:30})}</div><div>폴더를 못 열었어</div></div>`;return}
+ const d=await r.json();window._data={entries:d.entries};render()}
+function refresh(){nav(cur);loadUsage()}
+
+function render(){const d=window._data;if(!d)return;const box=$("#list");box.className=view==="grid"?"grid":"";
+ if(!d.entries.length){box.innerHTML=`<div class="empty"><div class="e">${ic("heart",{size:30,fill:true})}</div><div class="p">${d.search?"못 찾았어…":"텅 비었어… ♡"}</div>${d.search?"":`<div style="margin-top:8px;font-size:12px">＋ 눌러서 올려봐</div>`}</div>`;return}
+ box.innerHTML=d.entries.map((e,i)=>{
+  const t=ftype(e);const cp=e.rel||((cur==="/"?"":cur)+"/"+e.name);
+  const meta=e.isDir?"폴더":fb(e.size)+" · "+fdate(e.mod);
+  let iconhtml;
+  if(view==="grid"&&(t==="image"||t==="video")){iconhtml=`<img loading="lazy" src="/thumb?path=${encodeURIComponent(cp)}" onerror="this.parentNode.innerHTML='${t==="video"?ic("video"):ic("image")}'">`}
+  else iconhtml=ic(t,{size:view==="grid"?34:20});
+  return `<div class="item ${e.isDir?'dir':''}" onclick="tap(${i})">
+   <div class="ic ${e.isDir||t!=='file'?'':'f'}">${iconhtml}</div>
+   <div class="nm"><div class="t">${esc(e.name)}</div>${view==="grid"?"":`<div class="m">${meta}</div>`}</div>
+   <button class="menu" onclick="event.stopPropagation();itemMenu(${i})">${ic("menu",{size:18})}</button></div>`}).join("");
+ window._e=d.entries}
+function path_of(e){return e.rel||((cur==="/"?"":cur)+"/"+e.name)}
+function tap(i){const e=window._e[i];if(e.isDir)nav(path_of(e));else preview(e)}
+
+function preview(e){const p=path_of(e);const x=ext(e.name);
+ const raw="/raw?path="+encodeURIComponent(p),dl="/dl?path="+encodeURIComponent(p),stream="/stream?path="+encodeURIComponent(p);
+ const NATIVE=["mp4","webm","m4v","mov"];let inner="";
+ if(IMG.includes(x))inner=`<img src="${raw}">`;
+ else if(VID.includes(x)){const src=NATIVE.includes(x)?raw:stream;inner=`<video src="${src}" data-fb="${stream}" controls autoplay playsinline onerror="if(this.src.indexOf('/stream')<0)this.src=this.dataset.fb"></video>`}
+ else if(AUD.includes(x))inner=`<audio src="${raw}" controls autoplay style="width:90%"></audio>`;
+ else{location.href=dl;return}
+ const pv=document.createElement("div");pv.className="pv";
+ pv.innerHTML=`<div class="top"><button class="iconbtn" onclick="this.closest('.pv').remove()">${ic("x")}</button><div class="t">${esc(e.name)}</div><a class="dl" href="${dl}">${ic("download",{size:16})} 저장</a></div><div class="body">${inner}</div>`;
+ document.body.appendChild(pv)}
+
+function openAdd(){sheet([
+ {i:"upload",t:"파일 올리기",fn:()=>$("#fileinput").click()},
+ {i:"folderplus",t:"새 폴더",fn:newFolder},
+ {i:"share",t:"공유 관리",fn:manageShares},
+])}
+function itemMenu(i){const e=window._e[i];sheet([
+ ...(e.isDir?[{i:"zip",t:"ZIP 다운로드",fn:()=>location.href="/api/zip?path="+encodeURIComponent(path_of(e))}]:[{i:"download",t:"다운로드",fn:()=>location.href="/dl?path="+encodeURIComponent(path_of(e))}]),
+ {i:"share",t:"링크 공유",fn:()=>share(e)},
+ {i:"edit",t:"이름 바꾸기",fn:()=>rename(e)},
+ {i:"trash",t:"삭제",danger:true,fn:()=>del(e)},
+])}
+function sheet(rows){const s=document.createElement("div");s.className="scrim";s.onclick=e=>{if(e.target===s)s.remove()};
+ s.innerHTML=`<div class="sheet"><div class="grab"></div>${rows.map((r,i)=>`<div class="row ${r.danger?'danger':''}" data-i="${i}"><span class="i">${ic(r.i,{size:20})}</span>${r.t}</div>`).join("")}</div>`;
+ document.body.appendChild(s);s.querySelectorAll(".row").forEach((el,i)=>el.onclick=()=>{s.remove();rows[i].fn()})}
+function dialog(title,icon,val,ph,cb){const s=document.createElement("div");s.className="scrim center";
+ s.innerHTML=`<div class="dialog"><h3>${ic(icon,{size:16})} ${title}</h3><input id="dlgi" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="${ph||''}"><div class="btns"><button class="cancel">취소</button><button class="ok">확인 ♥</button></div></div>`;
+ document.body.appendChild(s);const inp=s.querySelector("#dlgi");inp.focus();inp.select();
+ s.querySelector(".cancel").onclick=()=>s.remove();const go=()=>{const v=inp.value.trim();if(v){s.remove();cb(v)}};
+ s.querySelector(".ok").onclick=go;inp.onkeydown=e=>{if(e.key==="Enter")go()}}
+function newFolder(){dialog("새 폴더 ♡","folderplus","","폴더 이름",async name=>{const r=await api("/api/mkdir",{method:"POST",body:JSON.stringify({path:cur,name})});if(r.ok){toast("만들었어 ♡");refresh()}else toast("실패…💔")})}
+function rename(e){dialog("이름 바꾸기","edit",e.name,"",async nn=>{const r=await api("/api/rename",{method:"POST",body:JSON.stringify({path:path_of(e),newName:nn})});if(r.ok){toast("바꿨어 ♡");refresh()}else toast("실패…💔")})}
+function del(e){const s=document.createElement("div");s.className="scrim center";
+ s.innerHTML=`<div class="dialog"><h3>${ic("trash",{size:16})} 삭제할까…?</h3><div style="font-size:14px;color:var(--dim);margin-bottom:18px">${esc(e.name)}</div><div class="btns"><button class="cancel">아니</button><button class="ok" style="background:linear-gradient(90deg,#ff6f8e,#ff2d6e)">삭제</button></div></div>`;
+ document.body.appendChild(s);s.querySelector(".cancel").onclick=()=>s.remove();
+ s.querySelector(".ok").onclick=async()=>{s.remove();const r=await api("/api/delete",{method:"POST",body:JSON.stringify({path:path_of(e)})});if(r.ok){toast("지웠어");refresh()}else toast("실패…💔")}}
+async function share(e){const r=await api("/api/share",{method:"POST",body:JSON.stringify({path:path_of(e)})});
+ if(!r.ok){toast("공유 실패…💔");return}const d=await r.json();const link=location.origin+d.url;
+ const s=document.createElement("div");s.className="scrim center";
+ s.innerHTML=`<div class="dialog"><h3>${ic("share",{size:16})} 링크 공유 ♡</h3><div style="font-size:13px;color:var(--dim);margin-bottom:10px">${esc(e.name)} — 이 링크 아는 사람은 누구나 열 수 있어</div><input id="slink" value="${link}" readonly onclick="this.select()"><div class="btns"><button class="cancel" onclick="this.closest('.scrim').remove()">닫기</button><button class="ok" id="copyb">${ic("copy",{size:15})} 복사</button></div></div>`;
+ document.body.appendChild(s);s.querySelector("#copyb").onclick=async()=>{try{await navigator.clipboard.writeText(link)}catch(_){const i=s.querySelector("#slink");i.select();document.execCommand("copy")}toast("링크 복사됐어 ♡")}}
+async function manageShares(){const r=await api("/api/shares");const d=await r.json();
+ const s=document.createElement("div");s.className="scrim center";
+ const rows=(d.shares||[]).map(sh=>`<div class="shrow" data-tok="${sh.token}"><span class="i" style="color:var(--pink);display:flex">${ic(sh.isDir?"folder":"file",{size:16})}</span><div class="t">${esc(sh.name)}</div><button class="cp" title="복사">${ic("copy",{size:16})}</button><button class="rm">${ic("trash",{size:16})}</button></div>`).join("");
+ s.innerHTML=`<div class="dialog"><h3>${ic("share",{size:16})} 공유 관리</h3><div class="shlist">${rows||'<div style="color:var(--dim);font-size:13px;padding:14px;text-align:center">공유한 게 없어 ♡</div>'}</div><div class="btns"><button class="cancel" onclick="this.closest('.scrim').remove()">닫기</button></div></div>`;
+ document.body.appendChild(s);
+ s.querySelectorAll(".shrow").forEach(row=>{const tok=row.dataset.tok;
+  row.querySelector(".cp").onclick=async()=>{const link=location.origin+"/s/"+tok;try{await navigator.clipboard.writeText(link)}catch(_){}toast("링크 복사됨 ♡")};
+  row.querySelector(".rm").onclick=async()=>{await api("/api/unshare",{method:"POST",body:JSON.stringify({token:tok})});row.remove();toast("공유 해제됨")}})}
+
+$("#fileinput").addEventListener("change",e=>{if(e.target.files.length)upload(e.target.files);e.target.value=""});
+function upload(files){const fd=new FormData();for(const f of files)fd.append("files",f);
+ const box=document.createElement("div");box.id="up";box.innerHTML=`<div class="t">올리는 중… ${files.length}개</div><div class="bar"><i></i></div>`;document.body.appendChild(box);const bar=box.querySelector("i");
+ const xhr=new XMLHttpRequest();xhr.open("POST","/api/upload?path="+encodeURIComponent(cur));
+ xhr.upload.onprogress=e=>{if(e.lengthComputable)bar.style.width=(100*e.loaded/e.total)+"%"};
+ xhr.onload=()=>{box.remove();if(xhr.status===200){toast("올렸어 ♡");refresh()}else toast("업로드 실패…💔")};
+ xhr.onerror=()=>{box.remove();toast("업로드 실패…💔")};xhr.send(fd)}
+window.addEventListener("dragover",e=>e.preventDefault());
+window.addEventListener("drop",e=>{e.preventDefault();if(e.dataTransfer.files.length)upload(e.dataTransfer.files)});
+$("#pw")&&$("#pw").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
+boot();
+</script>
+</body>
+</html>
