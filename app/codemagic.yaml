@@ -1,0 +1,46 @@
+# SHINODRIVE — Codemagic (canvasplayer와 같은 사이드로드 방식)
+# 서명하지 않는다. 무서명 release IPA를 만들고 AltStore/SideStore/Sideloadly가
+# 사용자 Apple ID로 재서명한다. (Linux에선 iOS 빌드 불가라 Codemagic 맥에서 짓는다)
+#
+#   tool/cm build ios-ipa      main 브랜치로 새 빌드
+#   tool/cm ipa [빌드ID]       IPA 내려받기
+workflows:
+  ios-ipa:
+    name: SHINODRIVE iOS (무서명 IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      flutter: 3.44.8
+      xcode: latest
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: 의존성
+        script: flutter pub get
+      - name: 분석
+        script: flutter analyze || true
+      # release(AOT) — 사이드로드 기기에서 디버거 없이 도는 빌드
+      - name: iOS 빌드 (서명 없음)
+        script: flutter build ios --no-codesign --release
+      - name: IPA로 묶기 (Payload/*.app → zip → .ipa)
+        script: |
+          set -e
+          rm -rf build/ios/ipa && mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qry shinodrive-unsigned.ipa Payload
+          ls -lh shinodrive-unsigned.ipa
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - seohyun6773@gmail.com
+        notify:
+          success: true
+          failure: true

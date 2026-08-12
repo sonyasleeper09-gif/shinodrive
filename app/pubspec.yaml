@@ -1,0 +1,46 @@
+name: shinodrive
+description: "SHINODRIVE — 병みかわ NAS 클라이언트"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.7.0
+  shared_preferences: ^2.3.2
+  file_picker: ^8.1.4
+  video_player: ^2.9.2
+  chewie: ^1.8.5
+  share_plus: ^10.1.2
+  path_provider: ^2.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  image_path: "assets/icon.png"
+  ios: true
+  android: true
+  remove_alpha_ios: true
+  background_color_ios: "#12091c"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon.png
+  fonts:
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
+    - family: PressStart2P
+      fonts:
+        - asset: assets/fonts/PressStart2P.ttf
