@@ -4,6 +4,7 @@ package main
 
 import (
 	"archive/zip"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -30,11 +31,13 @@ import (
 var webFS embed.FS
 
 var (
-	root     = envOr("SHINODRIVE_ROOT", "/home/nas")
-	addr     = envOr("SHINODRIVE_ADDR", ":8090")
-	cfgDir   = envOr("SHINODRIVE_CFG", os.Getenv("HOME")+"/.config/shinodrive")
-	secret   []byte
-	passHash [32]byte
+	root   = envOr("SHINODRIVE_ROOT", "/home/nas")
+	addr   = envOr("SHINODRIVE_ADDR", ":8090")
+	cfgDir = envOr("SHINODRIVE_CFG", os.Getenv("HOME")+"/.config/shinodrive")
+	secret []byte
+
+	users   = map[string]*User{}
+	usersMu sync.Mutex
 
 	shares   = map[string]shareRec{}
 	sharesMu sync.Mutex
@@ -43,10 +46,40 @@ var (
 	cpuMu   sync.Mutex
 )
 
+// User — 계정. Role: admin(전체+유저관리) / editor(읽기쓰기) / reader(읽기전용).
+// Home: root 아래 개인 폴더 (""=root 전체, admin용).
+type User struct {
+	Name string `json:"-"`
+	Pass string `json:"pass"` // sha256 hex
+	Role string `json:"role"`
+	Home string `json:"home"`
+}
+
+func (u *User) canWrite() bool { return u != nil && (u.Role == "admin" || u.Role == "editor") }
+func (u *User) isAdmin() bool  { return u != nil && u.Role == "admin" }
+
+type ctxKey int
+
+const userKey ctxKey = 0
+
+func curUser(r *http.Request) *User {
+	if u, ok := r.Context().Value(userKey).(*User); ok {
+		return u
+	}
+	return nil
+}
+func rootFor(r *http.Request) string {
+	if u := curUser(r); u != nil && u.Home != "" {
+		return filepath.Join(root, u.Home)
+	}
+	return root
+}
+
 type shareRec struct {
 	Path    string `json:"path"`
 	IsDir   bool   `json:"isDir"`
 	Name    string `json:"name"`
+	Owner   string `json:"owner"`
 	Created int64  `json:"created"`
 }
 
@@ -60,11 +93,12 @@ func envOr(k, d string) string {
 func main() {
 	os.MkdirAll(cfgDir, 0700)
 	loadSecret()
-	loadPassword()
+	loadUsers()
 	loadShares()
 	if err := os.MkdirAll(root, 0755); err != nil {
 		fmt.Fprintln(os.Stderr, "root:", err)
 	}
+	ensureHomes()
 
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(webFS, "web")
@@ -74,10 +108,10 @@ func main() {
 	mux.HandleFunc("/api/logout", hLogout)
 	mux.HandleFunc("/api/me", auth(hMe))
 	mux.HandleFunc("/api/list", auth(hList))
-	mux.HandleFunc("/api/mkdir", auth(hMkdir))
-	mux.HandleFunc("/api/delete", auth(hDelete))
-	mux.HandleFunc("/api/rename", auth(hRename))
-	mux.HandleFunc("/api/upload", auth(hUpload))
+	mux.HandleFunc("/api/mkdir", authW(hMkdir))
+	mux.HandleFunc("/api/delete", authW(hDelete))
+	mux.HandleFunc("/api/rename", authW(hRename))
+	mux.HandleFunc("/api/upload", authW(hUpload))
 	mux.HandleFunc("/api/usage", auth(hUsage))
 	mux.HandleFunc("/dl", auth(hDownload))
 	mux.HandleFunc("/raw", auth(hRaw))
@@ -91,6 +125,9 @@ func main() {
 	mux.HandleFunc("/thumb", auth(hThumb))
 	mux.HandleFunc("/api/search", auth(hSearch))
 	mux.HandleFunc("/api/zip", auth(hZip))
+	mux.HandleFunc("/api/users", authA(hUsers))       // 관리자: 목록/추가
+	mux.HandleFunc("/api/users/del", authA(hUserDel)) // 관리자: 삭제
+	mux.HandleFunc("/api/passwd", auth(hPasswd))      // 본인 비번 변경
 
 	fmt.Println("SHINODRIVE on", addr, "root", root)
 	srv := &http.Server{Addr: addr, Handler: logmw(mux), ReadHeaderTimeout: 15 * time.Second}
@@ -116,47 +153,110 @@ func loadSecret() {
 	os.WriteFile(p, secret, 0600)
 }
 
-func loadPassword() {
-	p := filepath.Join(cfgDir, "password.txt")
-	b, err := os.ReadFile(p)
-	if err != nil {
-		os.WriteFile(p, []byte("menhera\n"), 0600)
-		b = []byte("menhera")
-	}
-	passHash = sha256.Sum256([]byte(strings.TrimSpace(string(b))))
+func hashPw(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
 }
 
-// ── auth token (signed cookie) ──
-func makeToken() string {
+// users.json 로드. 없으면 password.txt(옛 단일비번)에서 admin 계정으로 마이그레이션.
+func loadUsers() {
+	usersMu.Lock()
+	defer usersMu.Unlock()
+	p := filepath.Join(cfgDir, "users.json")
+	if b, err := os.ReadFile(p); err == nil {
+		m := map[string]*User{}
+		if json.Unmarshal(b, &m) == nil {
+			for name, u := range m {
+				u.Name = name
+			}
+			users = m
+			return
+		}
+	}
+	// 마이그레이션: password.txt → admin
+	pw := "menhera"
+	if b, err := os.ReadFile(filepath.Join(cfgDir, "password.txt")); err == nil {
+		pw = strings.TrimSpace(string(b))
+	}
+	users = map[string]*User{"admin": {Name: "admin", Pass: hashPw(pw), Role: "admin", Home: ""}}
+	saveUsersLocked()
+}
+func saveUsers() { usersMu.Lock(); saveUsersLocked(); usersMu.Unlock() }
+func saveUsersLocked() {
+	b, _ := json.MarshalIndent(users, "", "  ")
+	os.WriteFile(filepath.Join(cfgDir, "users.json"), b, 0600)
+}
+func ensureHomes() {
+	usersMu.Lock()
+	defer usersMu.Unlock()
+	for _, u := range users {
+		if u.Home != "" {
+			os.MkdirAll(filepath.Join(root, u.Home), 0755)
+		}
+	}
+}
+func getUser(name string) *User {
+	usersMu.Lock()
+	defer usersMu.Unlock()
+	return users[name]
+}
+
+// ── auth token: <user>.<exp>.<hmac(user|exp)> ──
+func makeToken(user string) string {
 	exp := time.Now().Add(30 * 24 * time.Hour).Unix()
-	msg := strconv.FormatInt(exp, 10)
+	msg := user + "|" + strconv.FormatInt(exp, 10)
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(msg))
-	return msg + "." + hex.EncodeToString(mac.Sum(nil))
+	return user + "." + strconv.FormatInt(exp, 10) + "." + hex.EncodeToString(mac.Sum(nil))
 }
-func validToken(t string) bool {
-	parts := strings.SplitN(t, ".", 2)
-	if len(parts) != 2 {
-		return false
+
+// tokenUser: 토큰 검증 후 해당 User 반환 (nil이면 무효)
+func tokenUser(t string) *User {
+	parts := strings.Split(t, ".")
+	if len(parts) != 3 {
+		return nil
 	}
-	exp, err := strconv.ParseInt(parts[0], 10, 64)
+	user, expS, sig := parts[0], parts[1], parts[2]
+	exp, err := strconv.ParseInt(expS, 10, 64)
 	if err != nil || time.Now().Unix() > exp {
-		return false
+		return nil
 	}
 	mac := hmac.New(sha256.New, secret)
-	mac.Write([]byte(parts[0]))
+	mac.Write([]byte(user + "|" + expS))
 	want := hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(want), []byte(parts[1]))
+	if !hmac.Equal([]byte(want), []byte(sig)) {
+		return nil
+	}
+	return getUser(user)
 }
 
 func auth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if validToken(reqToken(r)) {
-			h(w, r)
+		u := tokenUser(reqToken(r))
+		if u == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		h(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
 	}
+}
+func authW(h http.HandlerFunc) http.HandlerFunc { // 쓰기 권한 필요
+	return auth(func(w http.ResponseWriter, r *http.Request) {
+		if !curUser(r).canWrite() {
+			http.Error(w, "읽기 전용 계정이에요 ♡", http.StatusForbidden)
+			return
+		}
+		h(w, r)
+	})
+}
+func authA(h http.HandlerFunc) http.HandlerFunc { // 관리자 필요
+	return auth(func(w http.ResponseWriter, r *http.Request) {
+		if !curUser(r).isAdmin() {
+			http.Error(w, "관리자만 가능해요", http.StatusForbidden)
+			return
+		}
+		h(w, r)
+	})
 }
 
 // 토큰 소스: 쿠키(웹) / Authorization Bearer(앱) / ?t= 쿼리(미디어 로딩용)
@@ -171,27 +271,35 @@ func reqToken(r *http.Request) string {
 }
 
 func hLogin(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Password string `json:"password"` }
+	var body struct{ Username, Password string }
 	json.NewDecoder(r.Body).Decode(&body)
-	got := sha256.Sum256([]byte(body.Password))
-	if subtle.ConstantTimeCompare(got[:], passHash[:]) != 1 {
+	// username 생략 시 유일 계정 or "admin" 시도 (구버전 앱 호환)
+	name := strings.TrimSpace(body.Username)
+	if name == "" {
+		name = "admin"
+	}
+	u := getUser(name)
+	if u == nil || subtle.ConstantTimeCompare([]byte(u.Pass), []byte(hashPw(body.Password))) != 1 {
 		time.Sleep(600 * time.Millisecond)
-		http.Error(w, "wrong password", http.StatusUnauthorized)
+		http.Error(w, "아이디나 비밀번호가 틀렸어… ♡", http.StatusUnauthorized)
 		return
 	}
-	tok := makeToken()
+	tok := makeToken(name)
 	http.SetCookie(w, &http.Cookie{
 		Name: "sd_auth", Value: tok, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
 		MaxAge: 30 * 24 * 3600,
 	})
-	writeJSON(w, map[string]any{"ok": true, "token": tok}) // 앱은 이 토큰을 헤더로 사용
+	writeJSON(w, map[string]any{"ok": true, "token": tok, "user": name, "role": u.Role, "admin": u.isAdmin()})
 }
 func hLogout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: "sd_auth", Value: "", Path: "/", MaxAge: -1})
 	writeJSON(w, map[string]any{"ok": true})
 }
-func hMe(w http.ResponseWriter, r *http.Request) { writeJSON(w, map[string]any{"ok": true}) }
+func hMe(w http.ResponseWriter, r *http.Request) {
+	u := curUser(r)
+	writeJSON(w, map[string]any{"ok": true, "user": u.Name, "role": u.Role, "admin": u.isAdmin(), "canWrite": u.canWrite()})
+}
 
 // ── path safety ──
 func resolveBase(base, rel string) (string, bool) {
@@ -202,7 +310,7 @@ func resolveBase(base, rel string) (string, bool) {
 	}
 	return full, true
 }
-func resolve(rel string) (string, bool) { return resolveBase(root, rel) }
+func resolveU(r *http.Request, rel string) (string, bool) { return resolveBase(rootFor(r), rel) }
 
 type Entry struct {
 	Name  string `json:"name"`
@@ -238,7 +346,7 @@ func listDir(full string) ([]Entry, error) {
 
 func hList(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
-	full, ok := resolve(rel)
+	full, ok := resolveU(r, rel)
 	if !ok {
 		http.Error(w, "bad path", 400)
 		return
@@ -254,7 +362,7 @@ func hList(w http.ResponseWriter, r *http.Request) {
 func hMkdir(w http.ResponseWriter, r *http.Request) {
 	var b struct{ Path, Name string }
 	json.NewDecoder(r.Body).Decode(&b)
-	full, ok := resolve(path.Join(b.Path, b.Name))
+	full, ok := resolveU(r, path.Join(b.Path, b.Name))
 	if !ok || b.Name == "" {
 		http.Error(w, "bad", 400)
 		return
@@ -269,8 +377,8 @@ func hMkdir(w http.ResponseWriter, r *http.Request) {
 func hDelete(w http.ResponseWriter, r *http.Request) {
 	var b struct{ Path string }
 	json.NewDecoder(r.Body).Decode(&b)
-	full, ok := resolve(b.Path)
-	if !ok || full == root {
+	full, ok := resolveU(r, b.Path)
+	if !ok || full == rootFor(r) {
 		http.Error(w, "bad", 400)
 		return
 	}
@@ -284,8 +392,8 @@ func hDelete(w http.ResponseWriter, r *http.Request) {
 func hRename(w http.ResponseWriter, r *http.Request) {
 	var b struct{ Path, NewName string }
 	json.NewDecoder(r.Body).Decode(&b)
-	full, ok := resolve(b.Path)
-	if !ok || full == root || b.NewName == "" || strings.ContainsAny(b.NewName, "/\\") {
+	full, ok := resolveU(r, b.Path)
+	if !ok || full == rootFor(r) || b.NewName == "" || strings.ContainsAny(b.NewName, "/\\") {
 		http.Error(w, "bad", 400)
 		return
 	}
@@ -299,7 +407,7 @@ func hRename(w http.ResponseWriter, r *http.Request) {
 
 func hUpload(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
-	dir, ok := resolve(rel)
+	dir, ok := resolveU(r, rel)
 	if !ok {
 		http.Error(w, "bad path", 400)
 		return
@@ -332,7 +440,7 @@ func hDownload(w http.ResponseWriter, r *http.Request) { serveFile(w, r, true) }
 func hRaw(w http.ResponseWriter, r *http.Request)      { serveFile(w, r, false) }
 
 func serveFile(w http.ResponseWriter, r *http.Request, attach bool) {
-	full, ok := resolve(r.URL.Query().Get("path"))
+	full, ok := resolveU(r, r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad", 400)
 		return
@@ -355,7 +463,7 @@ func sendFile(w http.ResponseWriter, r *http.Request, full string, attach bool) 
 // hStream: ffmpeg으로 브라우저 재생 가능한 fragmented mp4로 실시간 변환.
 // 비디오 코덱이 이미 h264면 복사(-c:v copy, CPU 절약), 아니면 libx264 ultrafast.
 func hStream(w http.ResponseWriter, r *http.Request) {
-	full, ok := resolve(r.URL.Query().Get("path"))
+	full, ok := resolveU(r, r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad", 400)
 		return
@@ -397,7 +505,7 @@ func probeCodec(file string) string {
 
 // ── 썸네일 (ffmpeg: 이미지 리사이즈 / 영상 대표프레임), 디스크 캐시 ──
 func hThumb(w http.ResponseWriter, r *http.Request) {
-	full, ok := resolve(r.URL.Query().Get("path"))
+	full, ok := resolveU(r, r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad", 400)
 		return
@@ -427,7 +535,7 @@ func hThumb(w http.ResponseWriter, r *http.Request) {
 func hSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	baseRel := r.URL.Query().Get("path")
-	base, ok := resolve(baseRel)
+	base, ok := resolveU(r, baseRel)
 	if !ok || q == "" {
 		writeJSON(w, map[string]any{"entries": []Entry{}})
 		return
@@ -449,7 +557,7 @@ func hSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		if strings.Contains(strings.ToLower(d.Name()), q) {
 			info, _ := d.Info()
-			rel := strings.TrimPrefix(p, root)
+			rel := strings.TrimPrefix(p, rootFor(r))
 			res = append(res, SR{Entry{d.Name(), d.IsDir(), info.Size(), info.ModTime().Unix()}, filepath.ToSlash(rel)})
 		}
 		return nil
@@ -459,7 +567,7 @@ func hSearch(w http.ResponseWriter, r *http.Request) {
 
 // ── 폴더 ZIP 다운로드 (스트리밍) ──
 func hZip(w http.ResponseWriter, r *http.Request) {
-	full, ok := resolve(r.URL.Query().Get("path"))
+	full, ok := resolveU(r, r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad", 400)
 		return
@@ -590,7 +698,7 @@ func newToken() string {
 func hShare(w http.ResponseWriter, r *http.Request) {
 	var b struct{ Path string }
 	json.NewDecoder(r.Body).Decode(&b)
-	full, ok := resolve(b.Path)
+	full, ok := resolveU(r, b.Path)
 	if !ok {
 		http.Error(w, "bad", 400)
 		return
@@ -601,7 +709,11 @@ func hShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tok := newToken()
-	rec := shareRec{Path: path.Clean("/" + strings.TrimPrefix(b.Path, "/")), IsDir: info.IsDir(), Name: filepath.Base(full), Created: time.Now().Unix()}
+	rootRel := filepath.ToSlash(strings.TrimPrefix(full, root)) // 전역 root 기준 (공개 접근용)
+	if rootRel == "" {
+		rootRel = "/"
+	}
+	rec := shareRec{Path: rootRel, IsDir: info.IsDir(), Name: filepath.Base(full), Owner: curUser(r).Name, Created: time.Now().Unix()}
 	sharesMu.Lock()
 	shares[tok] = rec
 	saveShares()
@@ -660,7 +772,7 @@ func hShareData(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "공유가 없거나 만료됐어", 404)
 		return
 	}
-	base, ok := resolve(rec.Path)
+	base, ok := resolveBase(root, rec.Path)
 	if !ok {
 		http.Error(w, "bad", 400)
 		return
@@ -700,8 +812,100 @@ func hShareData(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ── 관리자: 유저 관리 ──
+func hUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		var b struct{ Username, Password, Role, Home string }
+		json.NewDecoder(r.Body).Decode(&b)
+		name := strings.TrimSpace(b.Username)
+		if name == "" || strings.ContainsAny(name, "/\\ ") || b.Password == "" {
+			http.Error(w, "아이디/비번을 확인해줘", 400)
+			return
+		}
+		role := b.Role
+		if role != "admin" && role != "editor" && role != "reader" {
+			role = "editor"
+		}
+		home := strings.TrimSpace(b.Home)
+		if home == "" && role != "admin" {
+			home = name // 개인 폴더 기본값 = 아이디
+		}
+		usersMu.Lock()
+		if users[name] != nil {
+			usersMu.Unlock()
+			http.Error(w, "이미 있는 아이디야", 409)
+			return
+		}
+		users[name] = &User{Name: name, Pass: hashPw(b.Password), Role: role, Home: home}
+		saveUsersLocked()
+		usersMu.Unlock()
+		if home != "" {
+			os.MkdirAll(filepath.Join(root, home), 0755)
+		}
+		writeJSON(w, map[string]any{"ok": true})
+		return
+	}
+	usersMu.Lock()
+	defer usersMu.Unlock()
+	list := []map[string]any{}
+	for name, u := range users {
+		list = append(list, map[string]any{"name": name, "role": u.Role, "home": u.Home})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i]["name"].(string) < list[j]["name"].(string) })
+	writeJSON(w, map[string]any{"users": list, "me": curUser(r).Name})
+}
+
+func hUserDel(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Username string }
+	json.NewDecoder(r.Body).Decode(&b)
+	if b.Username == curUser(r).Name {
+		http.Error(w, "자기 자신은 못 지워", 400)
+		return
+	}
+	usersMu.Lock()
+	u := users[b.Username]
+	if u == nil {
+		usersMu.Unlock()
+		http.Error(w, "없는 유저", 404)
+		return
+	}
+	if u.Role == "admin" {
+		cnt := 0
+		for _, x := range users {
+			if x.Role == "admin" {
+				cnt++
+			}
+		}
+		if cnt <= 1 {
+			usersMu.Unlock()
+			http.Error(w, "마지막 관리자는 못 지워", 400)
+			return
+		}
+	}
+	delete(users, b.Username)
+	saveUsersLocked()
+	usersMu.Unlock()
+	writeJSON(w, map[string]any{"ok": true}) // 홈 폴더는 데이터 보존을 위해 남겨둠
+}
+
+// 본인 비밀번호 변경
+func hPasswd(w http.ResponseWriter, r *http.Request) {
+	var b struct{ Old, New string }
+	json.NewDecoder(r.Body).Decode(&b)
+	u := curUser(r)
+	if subtle.ConstantTimeCompare([]byte(u.Pass), []byte(hashPw(b.Old))) != 1 || b.New == "" {
+		http.Error(w, "현재 비번이 틀렸어", 400)
+		return
+	}
+	usersMu.Lock()
+	users[u.Name].Pass = hashPw(b.New)
+	saveUsersLocked()
+	usersMu.Unlock()
+	writeJSON(w, map[string]any{"ok": true})
+}
+
 func hUsage(w http.ResponseWriter, r *http.Request) {
-	total, free := diskUsage(root)
+	total, free := diskUsage(rootFor(r))
 	writeJSON(w, map[string]any{"total": total, "used": total - free, "free": free})
 }
 

@@ -65,11 +65,23 @@ Everything is via environment variables (the `systemd` unit sets them for you):
 | `SHINODRIVE_ADDR` | `:8090` | listen address |
 | `SHINODRIVE_CFG` | `$HOME/.config/shinodrive` | where secrets live |
 
-**Password** lives in plaintext at `$SHINODRIVE_CFG/password.txt` (chmod 600). Edit it and
-`systemctl restart shinodrive` to change it. Default is `menhera`.
+Secrets/state created automatically in `$SHINODRIVE_CFG`: `secret` (cookie signing key),
+`shares.json` (active share links), and **`users.json`** (accounts).
 
-Secrets that get created automatically: `secret` (cookie signing key) and `shares.json`
-(active share links).
+## 👥 Users, home folders & permissions
+
+SHINODRIVE is multi-user. On first run it migrates the old single password into an **`admin`**
+account (login `admin` / your password). The admin can then add users from **☰ → 유저 관리**:
+
+| Role | Can do |
+|---|---|
+| **admin** | everything + manage users; sees the whole share root |
+| **editor** | read **and write** inside their own home folder |
+| **reader** | read-only (browse / download / share) inside their home |
+
+Each non-admin user gets a **private home folder** `SHINODRIVE_ROOT/<username>` and only ever sees
+inside it — path traversal out is blocked. Users can change their own password from the account menu.
+`users.json` stores `{username: {pass(sha256), role, home}}`.
 
 ---
 
@@ -92,7 +104,7 @@ view/download it at `/(s)/<token>` — no account needed. Manage or revoke links
 - Serve on your LAN, or reach it from anywhere via **Tailscale** / a reverse proxy. It speaks
   plain HTTP; put TLS in front of it if you expose it to the internet.
 - Path traversal is blocked (everything is resolved under the share root).
-- This is a personal-scale tool — one shared password, no per-user accounts (yet).
+- Multi-user with roles + per-user home folders (see above). Still personal-scale — no quotas or 2FA.
 
 ## 📄 License
 

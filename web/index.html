@@ -125,7 +125,8 @@ header{position:sticky;top:0;z-index:20;padding:12px 14px 10px;background:linear
 <div id="login">
   <div class="loginbox">
     <div class="logo">♥ SHINODRIVE ♥</div>
-    <div class="sub">病みかわ NAS ・ ぱすわーど いれて ♡</div>
+    <div class="sub">病みかわ NAS ・ ろぐいん して ♡</div>
+    <input id="usr" type="text" placeholder="아이디…" autocomplete="username">
     <input id="pw" type="password" placeholder="password…" autocomplete="current-password">
     <button class="go" onclick="doLogin()">ログイン ♥</button>
     <div class="err" id="lerr"></div>
@@ -140,7 +141,7 @@ header{position:sticky;top:0;z-index:20;padding:12px 14px 10px;background:linear
       <button class="iconbtn" id="btnSearch" onclick="toggleSearch()"></button>
       <button class="iconbtn" id="btnView" onclick="toggleView()"></button>
       <button class="iconbtn" onclick="refresh()" id="btnRefresh"></button>
-      <button class="iconbtn" onclick="logout()" id="btnPower"></button>
+      <button class="iconbtn" onclick="accountSheet()" id="btnAcct"></button>
     </div>
     <div class="usage">
       <span class="ic" id="uic"></span>
@@ -196,7 +197,12 @@ const ICONS={
  x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
  menu:'<circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>',
  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
- heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>'
+ heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>',
+ users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+ user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+ key:'<path d="M21 2l-2 2m-8.6 8.6a5 5 0 1 1-7 7 5 5 0 0 1 7-7zm0 0L16 7m0 0l3 3 3-3-3-3m-3 3l2.5 2.5"/>',
+ shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+ userplus:'<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>'
 };
 function ic(name,o={}){const s=o.size||22;const f=o.fill?"currentColor":"none";
  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${f}" stroke="currentColor" stroke-width="${o.sw||2}" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.file}</svg>`}
@@ -212,15 +218,37 @@ function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;
 
 let cur="/",view="list",searchOn=false,searchT=null;
 
-function boot(){$("#btnSearch").innerHTML=ic("search");$("#btnRefresh").innerHTML=ic("refresh");$("#btnPower").innerHTML=ic("power");$("#fab").innerHTML=ic("plus");
+function boot(){$("#btnSearch").innerHTML=ic("search");$("#btnRefresh").innerHTML=ic("refresh");$("#fab").innerHTML=ic("plus");
  $("#uic").innerHTML=ic("hdd",{size:16});$("#cic").innerHTML=ic("cpu",{size:15});$("#mic").innerHTML=ic("ram",{size:15});$("#tic").innerHTML=ic("temp",{size:15});$("#sic").innerHTML=ic("search",{size:16});
  $(".brand .hb").innerHTML=ic("heart",{size:15,fill:true});updateViewBtn();
- api("/api/me").then(r=>{if(r.ok)showApp();else $("#login").classList.remove("hidden")})}
-async function doLogin(){const pw=$("#pw").value;$("#lerr").textContent="";
- const r=await api("/api/login",{method:"POST",body:JSON.stringify({password:pw})});
- if(r.ok)showApp();else{$("#lerr").textContent="비밀번호가 틀렸어… 다시 해봐 ♡";$("#pw").value=""}}
-function showApp(){$("#login").classList.add("hidden");$("#app").classList.remove("hidden");loadUsage();updateSys();setInterval(updateSys,3000);nav("/")}
+ api("/api/me").then(async r=>{if(r.ok){window.me=await r.json();showApp()}else $("#login").classList.remove("hidden")})}
+async function doLogin(){const usr=$("#usr").value.trim(),pw=$("#pw").value;$("#lerr").textContent="";
+ const r=await api("/api/login",{method:"POST",body:JSON.stringify({username:usr,password:pw})});
+ if(r.ok){window.me=await r.json();showApp()}else{$("#lerr").textContent="아이디나 비밀번호가 틀렸어… ♡";$("#pw").value=""}}
+function canWrite(){return window.me&&window.me.canWrite}
+function showApp(){$("#login").classList.add("hidden");$("#app").classList.remove("hidden");
+ $("#btnAcct").innerHTML=ic("user");$("#fab").style.display=canWrite()?"grid":"none";
+ loadUsage();updateSys();setInterval(updateSys,3000);nav("/")}
 async function logout(){await api("/api/logout",{method:"POST"});location.reload()}
+async function manageUsers(){const r=await api("/api/users");if(!r.ok){toast("관리자만");return}const d=await r.json();
+ const rows=(d.users||[]).map(u=>`<div class="shrow" data-u="${esc(u.name)}"><span class="i" style="color:var(--pink);display:flex">${ic(u.role==='admin'?'shield':'user',{size:16})}</span><div class="t">${esc(u.name)} <span style="color:var(--dim);font-size:11px">· ${u.role}${u.home?' · /'+esc(u.home):' · 전체'}</span></div>${u.name===d.me?'':`<button class="rm">${ic("trash",{size:16})}</button>`}</div>`).join("");
+ const s=document.createElement("div");s.className="scrim center";
+ s.innerHTML=`<div class="dialog"><h3>${ic("users",{size:16})} 유저 관리</h3><div class="shlist">${rows}</div>
+  <div style="border-top:1px solid var(--line);margin:2px 0 12px"></div>
+  <input id="nu" placeholder="새 아이디" style="margin-bottom:8px"><input id="np" type="password" placeholder="비밀번호" style="margin-bottom:8px">
+  <select id="nr" style="width:100%;padding:13px 14px;border-radius:12px;background:var(--card);border:1px solid var(--line);color:var(--text);margin-bottom:16px">
+   <option value="editor">editor · 읽기+쓰기</option><option value="reader">reader · 읽기전용</option><option value="admin">admin · 관리자</option></select>
+  <div class="btns"><button class="cancel" onclick="this.closest('.scrim').remove()">닫기</button><button class="ok" id="addu">＋ 추가</button></div></div>`;
+ document.body.appendChild(s);
+ s.querySelectorAll(".shrow .rm").forEach(b=>b.onclick=async()=>{const nm=b.closest(".shrow").dataset.u;await api("/api/users/del",{method:"POST",body:JSON.stringify({username:nm})});b.closest(".shrow").remove();toast("삭제됨")});
+ s.querySelector("#addu").onclick=async()=>{const username=s.querySelector("#nu").value.trim(),password=s.querySelector("#np").value,role=s.querySelector("#nr").value;
+  if(!username||!password){toast("아이디/비번 입력해");return}
+  const rr=await api("/api/users",{method:"POST",body:JSON.stringify({username,password,role})});
+  if(rr.ok){toast("유저 추가됨 ♡ (홈: /"+username+")");s.remove();manageUsers()}else toast((await rr.text())||"실패…💔")}}
+function changePw(){const s=document.createElement("div");s.className="scrim center";
+ s.innerHTML=`<div class="dialog"><h3>${ic("key",{size:16})} 비밀번호 변경</h3><input id="op" type="password" placeholder="현재 비밀번호" style="margin-bottom:8px"><input id="npw" type="password" placeholder="새 비밀번호"><div class="btns"><button class="cancel" onclick="this.closest('.scrim').remove()">취소</button><button class="ok" id="okpw">변경 ♥</button></div></div>`;
+ document.body.appendChild(s);
+ s.querySelector("#okpw").onclick=async()=>{const old=s.querySelector("#op").value,nw=s.querySelector("#npw").value;const r=await api("/api/passwd",{method:"POST",body:JSON.stringify({old,new:nw})});if(r.ok){toast("바꿨어 ♡");s.remove()}else toast("현재 비번이 틀렸어")}}
 async function loadUsage(){const r=await api("/api/usage");if(!r.ok)return;const u=await r.json();$("#ubar").style.width=(u.total?100*u.used/u.total:0)+"%";$("#utext").textContent=fb(u.used)+" / "+fb(u.total)}
 async function updateSys(){const r=await api("/api/sys");if(!r.ok)return;const s=await r.json();$("#scpu").textContent=Math.round(s.cpu)+"%";$("#smem").textContent=Math.round(s.mem.pct)+"%";$("#stemp").textContent=Math.round(s.temp)+"°"}
 
@@ -272,14 +300,16 @@ function preview(e){const p=path_of(e);const x=ext(e.name);
 function openAdd(){sheet([
  {i:"upload",t:"파일 올리기",fn:()=>$("#fileinput").click()},
  {i:"folderplus",t:"새 폴더",fn:newFolder},
- {i:"share",t:"공유 관리",fn:manageShares},
 ])}
-function itemMenu(i){const e=window._e[i];sheet([
- ...(e.isDir?[{i:"zip",t:"ZIP 다운로드",fn:()=>location.href="/api/zip?path="+encodeURIComponent(path_of(e))}]:[{i:"download",t:"다운로드",fn:()=>location.href="/dl?path="+encodeURIComponent(path_of(e))}]),
- {i:"share",t:"링크 공유",fn:()=>share(e)},
- {i:"edit",t:"이름 바꾸기",fn:()=>rename(e)},
- {i:"trash",t:"삭제",danger:true,fn:()=>del(e)},
-])}
+function accountSheet(){const rows=[{i:"share",t:"공유 관리",fn:manageShares},{i:"key",t:"비밀번호 변경",fn:changePw}];
+ if(window.me&&window.me.admin)rows.splice(1,0,{i:"users",t:"유저 관리",fn:manageUsers});
+ rows.push({i:"power",t:"로그아웃 ("+((window.me&&window.me.user)||"")+")",danger:true,fn:logout});
+ sheet(rows)}
+function itemMenu(i){const e=window._e[i];const rows=[
+ (e.isDir?{i:"zip",t:"ZIP 다운로드",fn:()=>location.href="/api/zip?path="+encodeURIComponent(path_of(e))}:{i:"download",t:"다운로드",fn:()=>location.href="/dl?path="+encodeURIComponent(path_of(e))}),
+ {i:"share",t:"링크 공유",fn:()=>share(e)}];
+ if(canWrite())rows.push({i:"edit",t:"이름 바꾸기",fn:()=>rename(e)},{i:"trash",t:"삭제",danger:true,fn:()=>del(e)});
+ sheet(rows)}
 function sheet(rows){const s=document.createElement("div");s.className="scrim";s.onclick=e=>{if(e.target===s)s.remove()};
  s.innerHTML=`<div class="sheet"><div class="grab"></div>${rows.map((r,i)=>`<div class="row ${r.danger?'danger':''}" data-i="${i}"><span class="i">${ic(r.i,{size:20})}</span>${r.t}</div>`).join("")}</div>`;
  document.body.appendChild(s);s.querySelectorAll(".row").forEach((el,i)=>el.onclick=()=>{s.remove();rows[i].fn()})}
