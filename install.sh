@@ -28,7 +28,7 @@ else
 fi
 
 say "→ 빌드 중..."
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o shinodrive .
+CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o shinodrive .
 
 say "→ 설치 (sudo 필요)"
 sudo install -Dm755 shinodrive "$BIN_DIR/shinodrive"
