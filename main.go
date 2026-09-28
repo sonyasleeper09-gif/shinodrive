@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"net/http"
@@ -510,25 +511,40 @@ func hThumb(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad", 400)
 		return
 	}
-	info, err := os.Stat(full)
-	if err != nil || info.IsDir() {
-		http.Error(w, "404", 404)
+	cache, err := makeThumb(full, 320)
+	if err != nil {
+		http.Error(w, "no thumb", 415)
 		return
-	}
-	cacheDir := filepath.Join(os.Getenv("HOME"), ".cache", "shinodrive", "thumbs")
-	os.MkdirAll(cacheDir, 0755)
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d", full, info.Size(), info.ModTime().Unix())))
-	cache := filepath.Join(cacheDir, hex.EncodeToString(sum[:])+".jpg")
-	if _, err := os.Stat(cache); err != nil {
-		cmd := exec.Command("ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-			"-i", full, "-vf", "thumbnail,scale=320:-1", "-frames:v", "1", cache)
-		if err := cmd.Run(); err != nil {
-			http.Error(w, "no thumb", 415)
-			return
-		}
 	}
 	w.Header().Set("Cache-Control", "max-age=86400")
 	http.ServeFile(w, r, cache)
+}
+
+// makeThumb: 이미지 리사이즈 / 영상 대표프레임 / 음악 앨범아트를 width 폭 jpg로 (디스크 캐시).
+// ffmpeg가 못 읽는 파일(zip 등)은 실패 표시를 남겨 다시 시도하지 않는다.
+func makeThumb(full string, width int) (string, error) {
+	info, err := os.Stat(full)
+	if err != nil || info.IsDir() {
+		return "", fmt.Errorf("not a file")
+	}
+	cacheDir := filepath.Join(os.Getenv("HOME"), ".cache", "shinodrive", "thumbs")
+	os.MkdirAll(cacheDir, 0755)
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d|%d", full, info.Size(), info.ModTime().Unix(), width)))
+	cache := filepath.Join(cacheDir, hex.EncodeToString(sum[:])+".jpg")
+	if _, err := os.Stat(cache); err == nil {
+		return cache, nil
+	}
+	if _, err := os.Stat(cache + ".none"); err == nil {
+		return "", fmt.Errorf("no thumb")
+	}
+	cmd := exec.Command("ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+		"-i", full, "-vf", fmt.Sprintf("thumbnail,scale='min(%d,iw)':-2", width), "-frames:v", "1", cache)
+	if err := cmd.Run(); err != nil {
+		os.Remove(cache)
+		os.WriteFile(cache+".none", nil, 0644)
+		return "", err
+	}
+	return cache, nil
 }
 
 // ── 검색 (재귀 파일명) ──
@@ -753,9 +769,57 @@ func hSharePage(sub fs.FS) http.HandlerFunc {
 			http.Error(w, "no", 500)
 			return
 		}
+		tok := strings.Trim(strings.TrimPrefix(r.URL.Path, "/s/"), "/")
+		if rec, ok := getShare(tok); ok {
+			b = []byte(strings.Replace(string(b), "</head>", ogTags(r, tok, rec)+"</head>", 1))
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(b)
 	}
+}
+
+// ogTags: 디스코드·카카오톡·당근 등이 링크 미리보기 카드를 만들 때 읽는 Open Graph 태그.
+// 이 봇들은 자바스크립트를 실행하지 않으므로 서버가 HTML에 직접 넣어야 한다.
+func ogTags(r *http.Request, tok string, rec shareRec) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	base := scheme + "://" + r.Host
+	desc := "SHINODRIVE 공유 파일"
+	if full, ok := resolveBase(root, rec.Path); ok {
+		if rec.IsDir {
+			if entries, err := listDir(full); err == nil {
+				desc = fmt.Sprintf("폴더 · %d개 항목", len(entries))
+			}
+		} else if info, err := os.Stat(full); err == nil {
+			desc = "파일 · " + humanBytes(info.Size())
+		}
+	}
+	esc := html.EscapeString
+	tags := []string{
+		`<meta property="og:type" content="website">`,
+		`<meta property="og:site_name" content="SHINODRIVE">`,
+		`<meta property="og:title" content="` + esc(rec.Name) + `">`,
+		`<meta property="og:description" content="` + esc(desc) + `">`,
+		`<meta property="og:url" content="` + esc(base+"/s/"+tok) + `">`,
+		`<meta property="og:image" content="` + esc(base+"/sd/"+tok+"/og") + `">`,
+		`<meta name="twitter:card" content="summary_large_image">`,
+	}
+	return strings.Join(tags, "\n") + "\n"
+}
+
+func humanBytes(n int64) string {
+	const u = 1024
+	if n < u {
+		return fmt.Sprintf("%d B", n)
+	}
+	v, i := float64(n), 0
+	for v >= u && i < 4 {
+		v /= u
+		i++
+	}
+	return fmt.Sprintf("%.1f %s", v, []string{"B", "KB", "MB", "GB", "TB"}[i])
 }
 
 // /sd/{token}/{action}?p=subpath  (공개, 인증 불필요)
@@ -807,6 +871,17 @@ func hShareData(w http.ResponseWriter, r *http.Request) {
 		sendFile(w, r, target, false)
 	case "stream":
 		streamFile(w, r, target)
+	case "og": // 링크 미리보기 이미지: 사진·영상·앨범아트면 큰 썸네일, 아니면 기본 카드
+		w.Header().Set("Cache-Control", "max-age=3600")
+		if !rec.IsDir {
+			if cache, err := makeThumb(base, 1200); err == nil {
+				http.ServeFile(w, r, cache)
+				return
+			}
+		}
+		b, _ := fs.ReadFile(webFS, "web/og-default.png")
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(b)
 	default:
 		http.Error(w, "?", 400)
 	}
